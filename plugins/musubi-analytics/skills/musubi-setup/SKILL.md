@@ -6,46 +6,80 @@ allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
 
 # musubi-setup
 
-Claude Code セッションのトランスクリプトデータを musubi ダッシュボードに送信するためのセットアップを行います。
+Sets up transcript data collection for the musubi analytics dashboard from Claude Code sessions.
 
 ## Steps
 
-### 1. 状態チェック
+### 1. Status Check
 
-`~/.claude/settings.json` を読み、以下の設定状態を確認する:
+Read `~/.claude/settings.json` (user-level) and `.claude/settings.json` (directory-level) to check the following:
 
-- `env.MUSUBI_API_KEY` の有無
-- `hooks.Stop` に `musubi-stop-transcript-collect.sh` が含まれているか
-- `~/.claude/hooks/musubi-stop-transcript-collect.sh` が存在するか
-- `~/.claude/hooks/musubi-parse-transcript.mjs` が存在するか
+| Item                                                | Check                                              |
+| --------------------------------------------------- | -------------------------------------------------- |
+| `env.MUSUBI_API_KEY`                                | Present in user-level or directory-level settings? |
+| `hooks.Stop`                                        | Contains `musubi-stop-transcript-collect.sh`?      |
+| `~/.claude/hooks/musubi-stop-transcript-collect.sh` | File exists?                                       |
+| `~/.claude/hooks/musubi-parse-transcript.mjs`       | File exists?                                       |
 
-**全て設定済みの場合:**
-
-AskUserQuestion で確認:
-
-- **設定を更新する** — ステップ 2 に進む
-- **何もしない** — 「セットアップ済みです」と表示して終了
-
-**未設定の項目がある場合:** ステップ 2 に進む
-
-### 2. API キー取得案内
-
-以下を表示:
+Display the results as a markdown table with separate columns for user-level and directory-level:
 
 ```
-musubi analytics をセットアップします。
+### musubi analytics - Configuration Status
 
-1. musubi ダッシュボードをブラウザで開く
-2. Settings > AI Analytics > API Keys に移動
-3. 新しい API キーを発行（例: "my-macbook"）
-4. API キーをコピーして、次の質問に貼り付けてください
+| Component              | User level (~/.claude/)  | Directory level (.claude/) |
+|------------------------|--------------------------|----------------------------|
+| API Key                | ✅ Set / ❌ Not set       | ✅ Set / — (not set)        |
+| Stop Hook (settings)   | ✅ Configured / ❌ Not configured | ✅ Configured / — (not set) |
+| Hook script (collector)| ✅ Found / ❌ Missing     | —                          |
+| Hook script (parser)   | ✅ Found / ❌ Missing     | —                          |
 ```
 
-AskUserQuestion で API キーの入力を待つ。
+For the directory-level column, use "—" (em dash) when the item is not set. Only use ❌ for user-level items that are missing, since user-level is the recommended default. Hook scripts are always deployed to `~/.claude/hooks/` regardless of configuration level, so the directory-level column shows "—" for those rows.
 
-#### 疎通確認
+**If all items are configured:**
 
-API URL は環境変数 `MUSUBI_API_URL` が設定されていればそれを使い、なければ `https://api.musubi-me.app` をデフォルトとする。
+Use AskUserQuestion:
+
+- **Update** — Proceed to Step 2
+- **Cancel** — Display "Setup is already complete. No changes made." and exit
+
+**If any item is missing:** Proceed to Step 2
+
+### 2. Configuration Level Selection
+
+Use AskUserQuestion to let the user choose:
+
+- **User level (Recommended)** — Writes to `~/.claude/settings.json`. Applies to all projects.
+- **Directory level** — Writes to `.claude/settings.json` in the current project. Applies only to this project.
+
+After the user selects a level, open the musubi dashboard in the browser for API key retrieval:
+
+Determine the dashboard URL:
+
+- If `MUSUBI_API_URL` env var is set, derive from it (replace `api.` with `app.`, or replace port with dashboard port as appropriate). For localhost URLs like `http://localhost:3200`, use `http://localhost:3000`.
+- Otherwise, default to `https://app.musubi-me.app`
+
+```bash
+open "<dashboard-url>/settings/api-keys"
+```
+
+Then display:
+
+```
+Opening musubi dashboard in your browser...
+
+1. Go to Settings > API キー
+2. Create a new API key (e.g., "my-macbook")
+3. Copy the API key and paste it below
+```
+
+Use AskUserQuestion to wait for the API key input. The question should have a single option "Paste your API key" with description "Select 'Other' and paste your API key", so the user is guided to use the Other input.
+
+### 3. Connection Verification
+
+Determine the API URL:
+
+- Use `MUSUBI_API_URL` env var if set, otherwise default to `https://api.musubi-me.app`
 
 ```bash
 curl -s -w "\n%{http_code}" \
@@ -53,38 +87,40 @@ curl -s -w "\n%{http_code}" \
   "<api-url>/api/transcript/health"
 ```
 
-- HTTP 200 以外: エラーメッセージを表示して中断
-- HTTP 200: レスポンス JSON から `workspaceName` と `userName` を取得して表示:
+- Non-200 response: Display error message and abort
+- HTTP 200: Extract `workspaceName` and `userName` from the response JSON and display:
 
 ```
-接続確認OK！
-ワークスペース: <workspaceName>
-ユーザー: <userName>
+Connection verified!
+Workspace: <workspaceName>
+User: <userName>
 ```
 
-### 3. 自動設定
+### 4. Automatic Configuration
 
-#### Hook スクリプトのデプロイ
+#### Deploy Hook Scripts
 
-以下のファイルを `~/.claude/hooks/` にコピー:
+Copy the following files to `~/.claude/hooks/`:
 
 - `musubi-parse-transcript.mjs`
 - `musubi-stop-transcript-collect.sh`
 
-ソースパスの検索順:
+Source path search order:
 
-1. Plugin インストールパス: `~/.claude/plugins/musubi-analytics@musubi-analytics/skills/musubi-setup/scripts/`
-2. プロジェクトローカル: `$CLAUDE_PROJECT_DIR/.claude/hooks/`（開発用フォールバック）
+1. Plugin install path: `~/.claude/plugins/musubi-analytics@musubi-analytics/skills/musubi-setup/scripts/`
+2. Project local: `$CLAUDE_PROJECT_DIR/.claude/hooks/` (development fallback)
 
-コピー後、`chmod +x ~/.claude/hooks/musubi-stop-transcript-collect.sh` を実行。
+After copying, run `chmod +x ~/.claude/hooks/musubi-stop-transcript-collect.sh`.
 
-#### `~/.claude/settings.json` の更新
+#### Update Settings File
 
-`env` に追加:
+Write to the settings file chosen in Step 2 (user-level `~/.claude/settings.json` or directory-level `.claude/settings.json`).
 
-- `MUSUBI_API_KEY`: ユーザーが入力した API キー
+Add to `env`:
 
-Stop hook を追加（既存の hooks とマージ、既に存在する場合はスキップ）:
+- `MUSUBI_API_KEY`: The API key entered by the user
+
+Add Stop hook (merge with existing hooks, skip if already present):
 
 ```json
 {
@@ -105,10 +141,10 @@ Stop hook を追加（既存の hooks とマージ、既に存在する場合は
 }
 ```
 
-### 4. 完了メッセージ
+### 5. Completion
 
 ```
-セットアップ完了！
-Claude Code セッション終了時にトランスクリプトデータが自動送信されます。
-ダッシュボードでデータを確認してください。
+Setup complete!
+Transcript data will be automatically sent when Claude Code sessions end.
+Check your dashboard to view the collected data.
 ```
