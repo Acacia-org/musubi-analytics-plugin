@@ -19,7 +19,7 @@ Read `~/.claude/settings.json` (user-level) and `.claude/settings.json` (directo
 | `env.MUSUBI_API_KEY`                                | Present in user-level or directory-level settings? |
 | `hooks.Stop`                                        | Contains `musubi-stop-transcript-collect.sh`?      |
 | `~/.claude/hooks/musubi-stop-transcript-collect.sh` | File exists?                                       |
-| `~/.claude/hooks/musubi-parse-transcript.mjs`       | File exists?                                       |
+| `jq` command                                        | Available in PATH? (`command -v jq`)               |
 
 Display the results as a markdown table with separate columns for user-level and directory-level:
 
@@ -31,7 +31,7 @@ Display the results as a markdown table with separate columns for user-level and
 | API Key                | ✅ Set / ❌ Not set       | ✅ Set / — (not set)        |
 | Stop Hook (settings)   | ✅ Configured / ❌ Not configured | ✅ Configured / — (not set) |
 | Hook script (collector)| ✅ Found / ❌ Missing     | —                          |
-| Hook script (parser)   | ✅ Found / ❌ Missing     | —                          |
+| jq (required)          | ✅ Found / ❌ Not found   | —                          |
 ```
 
 For the directory-level column, use "—" (em dash) when the item is not set. Only use ❌ for user-level items that are missing, since user-level is the recommended default. Hook scripts are always deployed to `~/.claude/hooks/` regardless of configuration level, so the directory-level column shows "—" for those rows.
@@ -100,9 +100,8 @@ User: <userName>
 
 #### Deploy Hook Scripts
 
-Copy the following files to `~/.claude/hooks/`:
+Copy the following file to `~/.claude/hooks/`:
 
-- `musubi-parse-transcript.mjs`
 - `musubi-stop-transcript-collect.sh`
 
 Source path search order:
@@ -147,4 +146,14 @@ Add Stop hook (merge with existing hooks, skip if already present):
 Setup complete!
 Transcript data will be automatically sent when Claude Code sessions end.
 Check your dashboard to view the collected data.
+```
+
+If `jq` was not found in Step 1, display the following instead and **abort setup**:
+
+```
+❌ jq is required for transcript collection.
+   macOS:         brew install jq
+   Ubuntu/Debian: sudo apt install jq
+   Windows (WSL): sudo apt install jq
+   After installing jq, run /musubi-setup again.
 ```
