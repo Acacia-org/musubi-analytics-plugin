@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-// Claude Code JSONL トランスクリプトパーサー
-// 外部依存なし: node:fs, node:readline, node:path のみ使用
+// Claude Code JSONL transcript parser
+// Zero external dependencies: uses only node:fs, node:readline, node:path
 // Usage:
 //   node parse-transcript.mjs --transcript <path> [--api-url <url>]
 //   Environment variables MUSUBI_API_KEY (required) / MUSUBI_API_URL (optional) are also supported
@@ -11,38 +11,10 @@ import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import { parseArgs } from "node:util";
 
-// ─── Pricing Table (per 1M tokens) ───
-// https://docs.anthropic.com/en/docs/about-claude/models
-
-const PRICING = {
-  "claude-opus-4-6": { input: 15, output: 75, cacheRead: 1.5, cacheWrite: 18.75 },
-  "claude-opus-4-5-20250220": { input: 15, output: 75, cacheRead: 1.5, cacheWrite: 18.75 },
-  "claude-sonnet-4-6": { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
-  "claude-sonnet-4-5-20250514": { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
-  "claude-sonnet-4-20250514": { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
-  "claude-haiku-4-5-20251001": { input: 0.8, output: 4, cacheRead: 0.08, cacheWrite: 1 },
-};
-
-const DEFAULT_PRICING = { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 };
-
-function getPricing(model) {
-  return PRICING[model] || DEFAULT_PRICING;
-}
-
-function calcCost(pricing, inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens) {
-  return (
-    (inputTokens * pricing.input +
-      outputTokens * pricing.output +
-      cacheReadTokens * pricing.cacheRead +
-      cacheCreationTokens * pricing.cacheWrite) /
-    1_000_000
-  );
-}
-
 // ─── Tool Classification ───
 
 function classifyTool(toolUse) {
-  // JSONL にまれに XML フラグメントが混入するため、改行・タグを含む名前は除外
+  // JSONL occasionally contains XML fragments; skip names with newlines or tags
   const rawName = toolUse.name || "";
   if (rawName.includes("\n") || rawName.includes("<") || rawName.includes(">")) {
     return null;
@@ -53,8 +25,8 @@ function classifyTool(toolUse) {
   if (name === "Skill") {
     return { toolName: "Skill", toolDetail: input.skill || "" };
   }
-  if (name === "Task") {
-    return { toolName: "Task", toolDetail: input.subagent_type || "" };
+  if (name === "Task" || name === "Agent") {
+    return { toolName: "Agent", toolDetail: input.subagent_type || "" };
   }
   if (name.startsWith("mcp__")) {
     const parts = name.split("__");
@@ -100,7 +72,7 @@ async function parseTranscript(transcriptPath) {
       continue;
     }
 
-    // セッション情報の抽出（summary や system メッセージから）
+    // Extract session metadata from summary or system messages
     if (entry.sessionId && !sessionId) {
       sessionId = entry.sessionId;
     }
@@ -111,7 +83,7 @@ async function parseTranscript(transcriptPath) {
       version = entry.version;
     }
 
-    // タイムスタンプ追跡
+    // Track first/last timestamps
     const ts = entry.timestamp || entry.isoTimestamp;
     if (ts) {
       if (!firstTimestamp || ts < firstTimestamp) firstTimestamp = ts;
@@ -125,7 +97,7 @@ async function parseTranscript(transcriptPath) {
 
     totalApiRequests++;
 
-    // モデル別トークン集計
+    // Aggregate tokens per model
     const model = message.model || "unknown";
     const usage = message.usage || {};
     const inputTokens = usage.input_tokens || 0;
@@ -145,7 +117,6 @@ async function parseTranscript(transcriptPath) {
         outputTokens: 0,
         cacheReadTokens: 0,
         cacheCreationTokens: 0,
-        costUsd: 0,
         apiRequestCount: 0,
       });
     }
@@ -156,7 +127,7 @@ async function parseTranscript(transcriptPath) {
     m.cacheCreationTokens += cacheCreationTokens;
     m.apiRequestCount++;
 
-    // ツール集計
+    // Aggregate tool calls
     const content = message.content || [];
     for (const block of content) {
       if (block.type !== "tool_use") continue;
@@ -167,7 +138,7 @@ async function parseTranscript(transcriptPath) {
       const { toolName, toolDetail } = classified;
 
       if (toolName === "Skill") skillCallCount++;
-      else if (toolName === "Task") subagentCount++;
+      else if (toolName === "Agent") subagentCount++;
       else if (toolName.startsWith("mcp__")) mcpCallCount++;
 
       const key = `${toolName}|||${toolDetail}`;
@@ -178,15 +149,7 @@ async function parseTranscript(transcriptPath) {
     }
   }
 
-  // モデル別コスト計算
-  let totalCost = 0;
-  for (const m of models.values()) {
-    const pricing = getPricing(m.model);
-    m.costUsd = calcCost(pricing, m.inputTokens, m.outputTokens, m.cacheReadTokens, m.cacheCreationTokens);
-    totalCost += m.costUsd;
-  }
-
-  // git branch の抽出を試みる（cwd ベースのフォールバック）
+  // Attempt to detect git branch from cwd
   if (!gitBranch && cwd && typeof cwd === "string") {
     try {
       const { resolve } = await import("node:path");
@@ -202,7 +165,7 @@ async function parseTranscript(transcriptPath) {
         }).trim();
       }
     } catch {
-      // git が使えない環境では無視
+      // Ignore if git is not available
     }
   }
 
@@ -217,7 +180,6 @@ async function parseTranscript(transcriptPath) {
     totalOutputTokens,
     totalCacheReadTokens,
     totalCacheCreationTokens,
-    costUsd: totalCost,
     totalToolCalls,
     totalApiRequests,
     mcpCallCount,
@@ -289,7 +251,7 @@ async function main() {
   }
 
   const data = await parseTranscript(transcriptPath);
-  console.error(`Parsed session ${data.sessionId}: ${data.totalApiRequests} API requests, ${data.totalToolCalls} tool calls, $${data.costUsd.toFixed(4)}`);
+  console.error(`Parsed session ${data.sessionId}: ${data.totalApiRequests} API requests, ${data.totalToolCalls} tool calls`);
 
   await sendToApi(data, apiUrl, apiKey);
   console.error(`Sent to ${apiUrl}: ok`);
