@@ -1,6 +1,6 @@
 #!/bin/bash
 # Send Claude Code transcript to musubi analytics API
-API_URL="${MUSUBI_API_URL:-https://api.musubi-me.app}"
+API_URL="${MUSUBI_API_URL:-https://cc-usage-collector.musubi-me.app}"
 API_KEY="${MUSUBI_API_KEY:-}"
 [ -z "$API_KEY" ] && exit 0
 

@@ -79,7 +79,7 @@ Use AskUserQuestion to wait for the API key input. The question should have a si
 
 Determine the API URL:
 
-- Use `MUSUBI_API_URL` env var if set, otherwise default to `https://api.musubi-me.app`
+- Use `MUSUBI_API_URL` env var if set, otherwise default to `https://cc-usage-collector.musubi-me.app`
 
 ```bash
 curl -s -w "\n%{http_code}" \
