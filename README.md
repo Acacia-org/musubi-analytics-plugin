@@ -8,9 +8,8 @@ Tracks skill, subagent, and MCP usage per session.
 1. Push the contents of `packages/claude-plugin/` to a standalone GitHub repository
 
    ```bash
-   # e.g., github.com/yourorg/musubi-analytics-plugin
    cd packages/claude-plugin
-   git init && git remote add origin git@github.com:yourorg/musubi-analytics-plugin.git
+   git init && git remote add origin git@github.com:Acacia-org/musubi-analytics-plugin.git
    git add . && git commit -m "Initial release" && git push -u origin main
    ```
 
@@ -21,7 +20,7 @@ Tracks skill, subagent, and MCP usage per session.
 ### 1. Add marketplace (first time only)
 
 ```
-/plugin marketplace add yourorg/musubi-analytics-plugin
+/plugin marketplace add Acacia-org/musubi-analytics-plugin
 ```
 
 ### 2. Install the plugin
