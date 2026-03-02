@@ -55,12 +55,11 @@ Push to the GitHub repository, and users can pull the latest version with the up
 ## Architecture
 
 ```
-Session End → Stop hook → parse-transcript.mjs → POST /api/transcript → DB
+Session End → Stop hook (jq + curl) → POST cc-usage-collector/api/transcript → server-side parse → DB
 ```
 
-- **Stop hook**: Runs automatically when a Claude Code session ends
-- **parse-transcript.mjs**: Parses JSONL transcripts and aggregates data by model and tool
-- **/api/transcript**: Receives aggregated data and upserts into cc_sessions / cc_session_models / cc_session_tools
+- **Stop hook**: Runs automatically when a Claude Code session ends, extracts usage metadata via jq and sends NDJSON
+- **cc-usage-collector**: Standalone Cloudflare Worker that parses NDJSON and upserts into cc_sessions / cc_session_models / cc_session_tools
 
 ## Collected Data
 
