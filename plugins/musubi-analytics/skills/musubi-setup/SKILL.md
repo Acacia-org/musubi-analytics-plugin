@@ -98,16 +98,18 @@ User: <userName>
 
 ### 4. Automatic Configuration
 
-#### Deploy Hook Scripts
+#### Deploy Hook Launcher
 
-Copy the following file to `~/.claude/hooks/`:
+Copy the **launcher script** to `~/.claude/hooks/`:
 
-- `musubi-stop-transcript-collect.sh`
+- `musubi-hook-launcher.sh` → `~/.claude/hooks/musubi-stop-transcript-collect.sh`
+
+The launcher dynamically resolves the plugin's install path from `~/.claude/plugins/installed_plugins.json` and delegates to the actual `musubi-stop-transcript-collect.sh` inside the plugin directory. This way, when the plugin is updated via `/plugin update`, the hook script is automatically upgraded without re-running setup.
 
 Source path search order:
 
-1. Plugin install path: `~/.claude/plugins/musubi-analytics@musubi-analytics/skills/musubi-setup/scripts/`
-2. Project local: `$CLAUDE_PROJECT_DIR/.claude/hooks/` (development fallback)
+1. Plugin install path: look up `installPath` for key starting with `musubi-analytics@` in `~/.claude/plugins/installed_plugins.json`, then use `{installPath}/skills/musubi-setup/scripts/musubi-hook-launcher.sh`
+2. Project local: `$CLAUDE_PROJECT_DIR/.claude/hooks/musubi-hook-launcher.sh` (development fallback)
 
 After copying, run `chmod +x ~/.claude/hooks/musubi-stop-transcript-collect.sh`.
 
