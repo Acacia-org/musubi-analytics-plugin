@@ -18,6 +18,22 @@ if [ -f "$LOG_FILE" ] && [ "$(stat -f%z "$LOG_FILE" 2>/dev/null || stat -c%s "$L
   mv "$LOG_FILE" "${LOG_FILE}.old"
 fi
 
+# Count lines added/deleted from Write/Edit tool results before stripping content
+LINE_COUNTS=$(jq -s '
+  [.[] | select(.type == "result" and .tool_use_id) |
+    if .tool_name == "Write" then
+      { added: (.result // "" | split("\n") | length), deleted: 0 }
+    elif .tool_name == "Edit" then
+      {
+        added: (.input.new_string // "" | split("\n") | length),
+        deleted: (.input.old_string // "" | split("\n") | length)
+      }
+    else empty end
+  ] | { linesAdded: (map(.added) | add // 0), linesDeleted: (map(.deleted) | add // 0) }
+' "$JSONL_PATH" 2>/dev/null || echo '{"linesAdded":0,"linesDeleted":0}')
+LINES_ADDED=$(echo "$LINE_COUNTS" | jq -r '.linesAdded // 0')
+LINES_DELETED=$(echo "$LINE_COUNTS" | jq -r '.linesDeleted // 0')
+
 # Extract only usage + tool_use metadata from JSONL (reduces 10-27MB → ~50KB)
 nohup jq -c '
   if .type == "assistant" and .message then
@@ -32,7 +48,7 @@ nohup jq -c '
   elif .sessionId or .cwd or .version then
     {type, sessionId, cwd, version, timestamp, isoTimestamp}
   else empty end
-' "$JSONL_PATH" | curl -s -X POST "$API_URL/api/transcript" \
+' "$JSONL_PATH" | curl -s -X POST "$API_URL/api/transcript?linesAdded=${LINES_ADDED}&linesDeleted=${LINES_DELETED}" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/x-ndjson" \
   --data-binary @- \
