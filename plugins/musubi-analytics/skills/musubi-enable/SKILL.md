@@ -1,10 +1,10 @@
 ---
-name: musubi-setup
+name: musubi-enable
 description: musubi analytics のセットアップ。API キーの設定と hook の自動配置を行います。
 allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
 ---
 
-# musubi-setup
+# musubi-enable
 
 Sets up transcript data collection for the musubi analytics dashboard from Claude Code sessions.
 
@@ -108,7 +108,7 @@ The launcher dynamically resolves the plugin's install path from `~/.claude/plug
 
 Source path search order:
 
-1. Plugin install path: look up `installPath` for key starting with `musubi-analytics@` in `~/.claude/plugins/installed_plugins.json`, then use `{installPath}/skills/musubi-setup/scripts/musubi-hook-launcher.sh`
+1. Plugin install path: look up `installPath` for key starting with `musubi-analytics@` in `~/.claude/plugins/installed_plugins.json`, then use `{installPath}/skills/musubi-enable/scripts/musubi-hook-launcher.sh`
 2. Project local: `$CLAUDE_PROJECT_DIR/.claude/hooks/musubi-hook-launcher.sh` (development fallback)
 
 After copying, run `chmod +x ~/.claude/hooks/musubi-stop-transcript-collect.sh`.
@@ -147,7 +147,11 @@ Add Stop hook (merge with existing hooks, skip if already present):
 ```
 Setup complete!
 Transcript data will be automatically sent when Claude Code sessions end.
-Check your dashboard to view the collected data.
+
+⚠️ To start sending data, please end this session.
+   The Stop hook runs when a session ends, so use /exit to close
+   the current session. Data will be collected automatically
+   starting from the next session termination.
 ```
 
 If `jq` was not found in Step 1, display the following instead and **abort setup**:
@@ -157,5 +161,5 @@ If `jq` was not found in Step 1, display the following instead and **abort setup
    macOS:         brew install jq
    Ubuntu/Debian: sudo apt install jq
    Windows (WSL): sudo apt install jq
-   After installing jq, run /musubi-setup again.
+   After installing jq, run /musubi-enable again.
 ```

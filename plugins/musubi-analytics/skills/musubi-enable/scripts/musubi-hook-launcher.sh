@@ -12,7 +12,7 @@ INSTALL_PATH=$(jq -r '
 ' "$PLUGINS_JSON" 2>/dev/null)
 [ -z "$INSTALL_PATH" ] && exit 0
 
-SCRIPT="${INSTALL_PATH}/skills/musubi-setup/scripts/musubi-stop-transcript-collect.sh"
+SCRIPT="${INSTALL_PATH}/skills/musubi-enable/scripts/musubi-stop-transcript-collect.sh"
 [ -x "$SCRIPT" ] || exit 0
 
 exec "$SCRIPT"

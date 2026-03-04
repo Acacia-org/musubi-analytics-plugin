@@ -32,7 +32,7 @@ Tracks skill, subagent, and MCP usage per session.
 ### 3. Run setup
 
 ```
-/musubi-setup
+/musubi-enable
 ```
 
 - Generate an API key from the dashboard
