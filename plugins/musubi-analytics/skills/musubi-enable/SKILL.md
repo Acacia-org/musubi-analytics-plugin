@@ -8,6 +8,16 @@ allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
 
 Sets up transcript data collection for the musubi analytics dashboard from Claude Code sessions.
 
+## MANDATORY: AskUserQuestion Rules
+
+**CRITICAL**: Every `AskUserQuestion` call in this skill is a blocking step. You MUST:
+
+1. **ALWAYS call the AskUserQuestion tool** — never skip, assume, or auto-select an answer
+2. **ALWAYS WAIT for the user's actual response** before proceeding to the next step
+3. **NEVER proceed past any AskUserQuestion** without receiving the user's explicit selection
+
+Violating these rules will result in incorrect setup.
+
 ## Steps
 
 ### 1. Status Check
@@ -38,10 +48,13 @@ For the directory-level column, use "—" (em dash) when the item is not set. On
 
 **If all items are configured:**
 
-Use AskUserQuestion:
+**MANDATORY**: You MUST use AskUserQuestion tool and WAIT for the user's response before proceeding. Do NOT skip this step or assume the user's answer. Ask:
 
-- **Update** — Proceed to Step 2
-- **Cancel** — Display "Setup is already complete. No changes made." and exit
+- **Update** — "Re-run the setup process to update configuration"
+- **Cancel** — "Keep current configuration and exit"
+
+If the user selects "Cancel", display "Setup is already complete. No changes made." and exit.
+If the user selects "Update", proceed to Step 2.
 
 **If any item is missing:** Proceed to Step 2
 
