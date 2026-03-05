@@ -10,7 +10,7 @@
       "name": "musubi-analytics",
       "description": "Transcript-based Claude Code analytics. Collects skill, MCP, subagent usage data.",
       "source": "./plugins/musubi-analytics",
-      "skills": ["./plugins/musubi-analytics/skills/musubi-enable"]
+      "skills": ["./skills/musubi-enable"]
     }
   ]
 }
