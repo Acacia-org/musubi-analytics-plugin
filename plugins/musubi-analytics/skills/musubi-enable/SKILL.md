@@ -1,7 +1,7 @@
 ---
 name: musubi-enable
 description: musubi analytics のセットアップ。API キーの設定と hook の自動配置を行います。
-allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
+allowed-tools: Bash, Read, Write, Edit
 ---
 
 # musubi-enable
@@ -36,19 +36,26 @@ Display the results as a markdown table with separate columns for user-level and
 
 For the directory-level column, use "—" (em dash) when the item is not set. Only use ❌ for user-level items that are missing, since user-level is the recommended default. Hook scripts are always deployed to `~/.claude/hooks/` regardless of configuration level, so the directory-level column shows "—" for those rows.
 
-**Regardless of whether all items are configured or some are missing**, always proceed to Step 2. The user explicitly ran this skill, so always execute the full setup flow.
+**If all items are configured:**
+
+Use AskUserQuestion to ask the user:
+
+- **Update** — "Re-run the setup process to update configuration"
+- **Cancel** — "Keep current configuration and exit"
+
+If the user selects "Cancel", display "Setup is already complete. No changes made." and exit.
+If the user selects "Update", proceed to Step 2.
+
+**If any item is missing:** Proceed to Step 2
 
 ### 2. Configuration Level Selection
 
-Determine the configuration level automatically:
+Use AskUserQuestion to let the user choose:
 
-- If `MUSUBI_API_KEY` is already set in user-level settings (`~/.claude/settings.json`), use **user level**
-- If `MUSUBI_API_KEY` is already set in directory-level settings (`.claude/settings.json`), use **directory level**
-- If not set in either, use **user level** (default)
+- **User level (Recommended)** — Writes to `~/.claude/settings.json`. Applies to all projects.
+- **Directory level** — Writes to `.claude/settings.json` in the current project. Applies only to this project.
 
-Display which level will be used, e.g.: "Configuration level: user level (~/.claude/settings.json)"
-
-Then open the musubi dashboard in the browser for API key retrieval:
+After the user selects a level, open the musubi dashboard in the browser for API key retrieval:
 
 Determine the dashboard URL:
 
@@ -59,11 +66,7 @@ Determine the dashboard URL:
 open "<dashboard-url>/settings/api-keys"
 ```
 
-**If `MUSUBI_API_KEY` is already set** in the detected settings file, reuse the existing API key and skip to Step 3 (Connection Verification). Display: "Using existing API key."
-
-**If `MUSUBI_API_KEY` is not set**, open the browser and prompt for input:
-
-Display:
+Then display:
 
 ```
 Opening musubi dashboard in your browser...
