@@ -8,6 +8,28 @@ INPUT=$(cat)
 JSONL_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)
 [ -z "$JSONL_PATH" ] || [ ! -f "$JSONL_PATH" ] && exit 0
 
+# Resolve git repo identifier (org/repo) from cwd
+CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
+[ -z "$CWD" ] && CWD=$(head -1 "$JSONL_PATH" | jq -r '.cwd // empty' 2>/dev/null)
+REPO=""
+if [ -n "$CWD" ]; then
+  REMOTE_URL=$(git -C "$CWD" remote get-url origin 2>/dev/null)
+  if [ -n "$REMOTE_URL" ]; then
+    REPO=$(echo "$REMOTE_URL" | sed 's/\.git$//' | sed -E 's#^.+[:/]([^/]+/[^/]+)$#\1#')
+  fi
+fi
+
+# Resolve plugin version from installed_plugins.json
+PLUGINS_JSON="${HOME}/.claude/plugins/installed_plugins.json"
+PLUGIN_VERSION=""
+if [ -f "$PLUGINS_JSON" ]; then
+  PLUGIN_VERSION=$(jq -r '
+    .plugins | to_entries[]
+    | select(.key | startswith("musubi-analytics@"))
+    | .value[0].version // empty
+  ' "$PLUGINS_JSON" 2>/dev/null)
+fi
+
 LOG_DIR="${HOME}/.claude/logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/musubi-transcript-collect.log"
@@ -35,10 +57,11 @@ LINES_ADDED=$(echo "$LINE_COUNTS" | jq -r '.linesAdded // 0')
 LINES_DELETED=$(echo "$LINE_COUNTS" | jq -r '.linesDeleted // 0')
 
 # Extract only usage + tool_use metadata from JSONL (reduces 10-27MB → ~50KB)
-nohup jq -c '
+# Replace cwd with repo identifier and inject pluginVersion
+nohup jq -c --arg repo "$REPO" --arg pv "$PLUGIN_VERSION" '
   if .type == "assistant" and .message then
     {
-      type, sessionId, cwd, version, timestamp, isoTimestamp,
+      type, sessionId, repo: $repo, pluginVersion: $pv, version, timestamp, isoTimestamp,
       message: {
         model: .message.model,
         usage: .message.usage,
@@ -46,12 +69,15 @@ nohup jq -c '
       }
     }
   elif .sessionId or .cwd or .version then
-    {type, sessionId, cwd, version, timestamp, isoTimestamp}
+    {type, sessionId, repo: $repo, pluginVersion: $pv, version, timestamp, isoTimestamp}
   else empty end
 ' "$JSONL_PATH" | curl -s -X POST "$API_URL/api/transcript?linesAdded=${LINES_ADDED}&linesDeleted=${LINES_DELETED}" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/x-ndjson" \
   --data-binary @- \
   >> "$LOG_FILE" 2>&1 &
+
+# Auto-update plugin in background (applies from next session)
+claude plugin update "musubi-analytics@musubi-analytics" --scope user >> "$LOG_FILE" 2>&1 &
 
 exit 0
