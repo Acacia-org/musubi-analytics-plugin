@@ -3,7 +3,7 @@
   "owner": { "name": "musubi-team" },
   "metadata": {
     "description": "Claude Code transcript-based analytics for musubi dashboard",
-    "version": "1.0.0"
+    "version": "1.0.1"
   },
   "plugins": [
     {
