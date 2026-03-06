@@ -12,7 +12,7 @@ Sets up transcript data collection for the musubi analytics dashboard from Claud
 
 ### 1. Status Check
 
-Read `~/.claude/settings.json` (user-level) and `.claude/settings.json` (directory-level) to check the following:
+Read `~/.claude/settings.json` (user-level) and `.claude/settings.local.json` (directory-level) to check the following:
 
 | Item                                                | Check                                              |
 | --------------------------------------------------- | -------------------------------------------------- |
@@ -53,7 +53,7 @@ If the user selects "Update", proceed to Step 2.
 Use AskUserQuestion to let the user choose:
 
 - **User level (Recommended)** — Writes to `~/.claude/settings.json`. Applies to all projects.
-- **Directory level** — Writes to `.claude/settings.json` in the current project. Applies only to this project.
+- **Directory level** — Writes to `.claude/settings.local.json` in the current project. Applies only to this project. This file is automatically excluded from git by Claude Code, preventing accidental commit of API keys and personal settings.
 
 After the user selects a level, open the musubi dashboard in the browser for API key retrieval:
 
@@ -118,7 +118,7 @@ After copying, run `chmod +x ~/.claude/hooks/musubi-stop-transcript-collect.sh`.
 
 #### Update Settings File
 
-Write to the settings file chosen in Step 2 (user-level `~/.claude/settings.json` or directory-level `.claude/settings.json`).
+Write to the settings file chosen in Step 2 (user-level `~/.claude/settings.json` or directory-level `.claude/settings.local.json`).
 
 Add to `env`:
 
