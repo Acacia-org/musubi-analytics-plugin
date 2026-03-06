@@ -1,6 +1,8 @@
 {
   "name": "musubi-analytics",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Transcript-based Claude Code analytics collection",
-  "author": { "name": "musubi-team" }
+  "author": {
+    "name": "musubi-team"
+  }
 }
