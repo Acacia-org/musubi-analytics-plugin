@@ -19,6 +19,12 @@ if [ -n "$CWD" ]; then
   fi
 fi
 
+# Resolve git branch name from cwd
+GIT_BRANCH=""
+if [ -n "$CWD" ]; then
+  GIT_BRANCH=$(git -C "$CWD" rev-parse --abbrev-ref HEAD 2>/dev/null)
+fi
+
 # Resolve plugin version from installed_plugins.json
 PLUGINS_JSON="${HOME}/.claude/plugins/installed_plugins.json"
 PLUGIN_VERSION=""
@@ -58,10 +64,10 @@ LINES_DELETED=$(echo "$LINE_COUNTS" | jq -r '.linesDeleted // 0')
 
 # Extract only usage + tool_use metadata from JSONL (reduces 10-27MB → ~50KB)
 # Replace cwd with repo identifier and inject pluginVersion
-nohup jq -c --arg repo "$REPO" --arg pv "$PLUGIN_VERSION" '
+nohup jq -c --arg repo "$REPO" --arg pv "$PLUGIN_VERSION" --arg gb "$GIT_BRANCH" '
   if .type == "assistant" and .message then
     {
-      type, sessionId, repo: $repo, pluginVersion: $pv, version, timestamp, isoTimestamp,
+      type, sessionId, repo: $repo, pluginVersion: $pv, gitBranch: $gb, version, timestamp, isoTimestamp, costUSD,
       message: {
         model: .message.model,
         usage: .message.usage,
@@ -69,7 +75,7 @@ nohup jq -c --arg repo "$REPO" --arg pv "$PLUGIN_VERSION" '
       }
     }
   elif .sessionId or .cwd or .version then
-    {type, sessionId, repo: $repo, pluginVersion: $pv, version, timestamp, isoTimestamp}
+    {type, sessionId, repo: $repo, pluginVersion: $pv, gitBranch: $gb, version, timestamp, isoTimestamp}
   else empty end
 ' "$JSONL_PATH" | curl -s -X POST "$API_URL/api/transcript?linesAdded=${LINES_ADDED}&linesDeleted=${LINES_DELETED}" \
   -H "Authorization: Bearer $API_KEY" \
