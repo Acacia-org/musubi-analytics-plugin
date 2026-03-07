@@ -1,16 +1,20 @@
 {
   "name": "musubi-analytics",
-  "owner": { "name": "musubi-team" },
+  "owner": {
+    "name": "musubi-team"
+  },
   "metadata": {
     "description": "Claude Code transcript-based analytics for musubi dashboard",
-    "version": "1.1.0"
+    "version": "1.0.3"
   },
   "plugins": [
     {
       "name": "musubi-analytics",
       "description": "Transcript-based Claude Code analytics. Collects skill, MCP, subagent usage data.",
       "source": "./plugins/musubi-analytics",
-      "skills": ["./skills/musubi-enable"]
+      "skills": [
+        "./skills/musubi-enable"
+      ]
     }
   ]
 }
