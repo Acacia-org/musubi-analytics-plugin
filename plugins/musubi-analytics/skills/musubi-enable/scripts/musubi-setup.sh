@@ -154,6 +154,19 @@ cmd_verify() {
     json_err "no_key"
     return
   fi
+
+  # Use custom API URL from the resolved level's settings if available
+  local settings_for_url=""
+  case "$source" in
+    user) settings_for_url="$USER_SETTINGS" ;;
+    directory) settings_for_url="$DIR_SETTINGS" ;;
+  esac
+  local custom_url=""
+  custom_url=$(jq -r '.env.MUSUBI_API_URL // empty' "$settings_for_url" 2>/dev/null) || true
+  if [ -n "$custom_url" ]; then
+    HEALTH_ENDPOINT="${custom_url}/api/transcript/health"
+  fi
+
   local result
   result=$(verify_key "$key")
   echo "$result" | jq -c --arg src "$source" '. + {source: $src}'
