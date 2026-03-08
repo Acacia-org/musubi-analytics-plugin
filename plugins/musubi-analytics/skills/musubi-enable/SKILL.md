@@ -8,20 +8,52 @@ allowed-tools: Bash, Read, Write, Edit
 
 Sets up transcript data collection for the musubi analytics dashboard from Claude Code sessions.
 
+## SECURITY CONSTRAINT — READ THIS FIRST
+
+**The API key MUST NEVER appear in the LLM context.** This means:
+
+1. **NEVER use AskUserQuestion to ask the user for an API key.** Not as a question option, not as "Other" free text, not in any form.
+2. **NEVER read settings files** (`~/.claude/settings.json`, `.claude/settings.local.json`) with the Read or Edit tools, because they contain the API key.
+3. **ALL operations involving the API key** (status check, connection verification, key input, key storage, hook configuration) MUST go through `musubi-setup.sh` via the Bash tool.
+4. The user enters the API key **only** at the shell prompt (`read -s`) inside the setup script — this input goes directly to the script process and never reaches the LLM.
+
+If you are about to use AskUserQuestion with anything related to "API key", "paste", or "key" — **STOP. You are violating this constraint.**
+
+## Script Path Resolution
+
+Several steps use `musubi-setup.sh`. Resolve its path once at the start:
+
+1. Plugin install path: look up `installPath` for key starting with `musubi-analytics@` in `~/.claude/plugins/installed_plugins.json`, then use `{installPath}/skills/musubi-enable/scripts/musubi-setup.sh`
+2. Project local: `$CLAUDE_PROJECT_DIR/packages/claude-plugin/plugins/musubi-analytics/skills/musubi-enable/scripts/musubi-setup.sh` (development fallback)
+
+Store the resolved path as `SETUP_SCRIPT` for use in subsequent steps.
+
 ## Steps
 
 ### 1. Status Check
 
-Read `~/.claude/settings.json` (user-level) and `.claude/settings.local.json` (directory-level) to check the following:
+**IMPORTANT**: Do NOT read settings files directly with the Read tool. API keys must never enter the LLM context. Use the setup script for all settings checks.
 
-| Item                                                | Check                                              |
-| --------------------------------------------------- | -------------------------------------------------- |
-| `env.MUSUBI_API_KEY`                                | Present in user-level or directory-level settings? |
-| `hooks.Stop`                                        | Contains `musubi-stop-transcript-collect.sh`?      |
-| `~/.claude/hooks/musubi-stop-transcript-collect.sh` | File exists?                                       |
-| `jq` command                                        | Available in PATH? (`command -v jq`)               |
+Run the setup script to check configuration status:
 
-Display the results as a markdown table with separate columns for user-level and directory-level:
+```bash
+bash "$SETUP_SCRIPT" status
+```
+
+The script checks all items and returns JSON (API key values are never included):
+
+```json
+{
+  "userKeySet": true,
+  "dirKeySet": false,
+  "userHookConfigured": true,
+  "dirHookConfigured": false,
+  "hookScriptExists": true,
+  "hasJq": true
+}
+```
+
+Display the results as a markdown table:
 
 ```
 ### musubi analytics - Configuration Status
@@ -38,28 +70,27 @@ For the directory-level column, use "—" (em dash) when the item is not set. On
 
 #### Connection Verification (when API key exists)
 
-If an API key is found in either user-level or directory-level settings, perform a connection verification:
-
-Determine the API URL:
-
-- Use `MUSUBI_API_URL` env var if set, otherwise default to `https://cc-usage-collector.musubi-me.app`
+If `userKeySet` or `dirKeySet` is true, run connection verification:
 
 ```bash
-curl -s -w "\n%{http_code}" \
-  -H "Authorization: Bearer <API_KEY>" \
-  "<api-url>/api/transcript/health"
+bash "$SETUP_SCRIPT" verify
 ```
+
+The script reads the key directly from settings files and returns JSON (key value is never included):
+
+- `{"ok":true,"httpCode":200,"workspaceName":"...","workspaceSlug":"...","userName":"...","source":"user|directory"}` on success
+- `{"ok":false,"error":"..."}` on failure
 
 Add the result to the status table:
 
-- HTTP 200: `✅ Connected (Workspace: <workspaceName>, User: <userName>)`
-- Non-200: `❌ Failed (HTTP <status>)` — indicate the key may be invalid or revoked
+- `ok: true`: `✅ Connected (Workspace: <workspaceName>, User: <userName>)`
+- `ok: false`: `❌ Failed (<error>)` — indicate the key may be invalid or revoked
 
 ```
 | Connection             | ✅ Connected / ❌ Failed  | — or ✅ Connected / ❌ Failed |
 ```
 
-Store the `workspaceSlug` from the health response for use in Step 2 (dashboard URL).
+Store the `workspaceSlug` from the response for use in Step 2 (dashboard URL).
 
 **If all items are configured AND connection is verified:**
 
@@ -75,56 +106,56 @@ If the user selects "Update", proceed to Step 2.
 
 ### 2. Configuration Level Selection
 
-Use AskUserQuestion to let the user choose:
+Use AskUserQuestion to let the user choose the configuration level. **Only these two options — nothing else:**
 
 - **User level (Recommended)** — Writes to `~/.claude/settings.json`. Applies to all projects.
-- **Directory level** — Writes to `.claude/settings.local.json` in the current project. Applies only to this project. This file is automatically excluded from git by Claude Code, preventing accidental commit of API keys and personal settings.
+- **Directory level** — Writes to `.claude/settings.local.json` in the current project.
 
-After the user selects a level, open the musubi dashboard in the browser for API key retrieval:
+After the user selects a level, open the musubi dashboard and run the setup script in a **single Bash command**. Do NOT add any additional AskUserQuestion calls between the level selection and the Bash command.
 
 Determine the dashboard URL:
 
 - If `MUSUBI_API_URL` env var is set, derive from it (replace `api.` with `app.`, or replace port with dashboard port as appropriate). For localhost URLs like `http://localhost:3200`, use `http://localhost:3000`.
 - Otherwise, default to `https://app.musubi-me.app`
 
-If `workspaceSlug` was obtained from connection verification in Step 1, use it to construct the URL:
+Determine the dashboard path:
+
+- If `workspaceSlug` was obtained from connection verification in Step 1: `<dashboard-url>/<workspaceSlug>/settings/api-keys`
+- Otherwise: `<dashboard-url>/api-keys` (after login, the user will be redirected to their workspace's API keys page)
+
+Run dashboard open and setup script together:
 
 ```bash
-open "<dashboard-url>/<workspaceSlug>/settings/api-keys"
-```
-
-If `workspaceSlug` is not available (no existing key or connection failed), open the dashboard root:
-
-```bash
-open "<dashboard-url>"
-```
-
-Then display:
-
-```
+open "<dashboard-url>[/<workspaceSlug>]/api-keys" && echo "
 Opening musubi dashboard in your browser...
-
-1. Go to Settings > API キー
-2. Create a new API key (e.g., "my-macbook")
-3. Copy the API key and paste it below
+A dialog will appear — paste your API key there.
+" && bash "$SETUP_SCRIPT" setup <level>
 ```
 
-Use AskUserQuestion to wait for the API key input. The question should have a single option "Paste your API key" with description "Select 'Other' and paste your API key", so the user is guided to use the Other input.
+On macOS, a secure dialog appears for the user to paste the key. The key is never sent to the LLM.
 
-### 3. Connection Verification
+The script returns JSON:
 
-Determine the API URL:
+- `{"ok":true,...,"workspaceName":"...","userName":"...","level":"user|directory","written":true}` on success
+- `{"ok":false,"error":"empty_key"}` on failure (user cancelled dialog) — display the error and abort
+- `{"ok":false,"error":"no_tty"}` — non-macOS environment without interactive terminal. See **Fallback** below.
 
-- Use `MUSUBI_API_URL` env var if set, otherwise default to `https://cc-usage-collector.musubi-me.app`
+#### Fallback for non-macOS (Linux/WSL)
 
-```bash
-curl -s -w "\n%{http_code}" \
-  -H "Authorization: Bearer <API_KEY>" \
-  "<api-url>/api/transcript/health"
+If the script returns `no_tty`, display the following instructions so the user can run the script directly from a separate terminal:
+
+```
+This environment does not support secure key input dialogs.
+Please run the following command in a separate terminal:
+
+  bash <SETUP_SCRIPT_ABSOLUTE_PATH> setup <level>
+
+After running it, use /musubi-enable-local (or /musubi-enable) again to continue setup.
 ```
 
-- Non-200 response: Display error message and abort
-- HTTP 200: Extract `workspaceName`, `workspaceSlug`, and `userName` from the response JSON and display:
+Then **stop** — do NOT proceed to Step 3. The user will re-run the skill after manually executing the script.
+
+On success, display:
 
 ```
 Connection verified!
@@ -132,7 +163,7 @@ Workspace: <workspaceName>
 User: <userName>
 ```
 
-### 4. Automatic Configuration
+### 3. Automatic Configuration
 
 #### Deploy Hook Launcher
 
@@ -151,43 +182,41 @@ After copying, run `chmod +x ~/.claude/hooks/musubi-stop-transcript-collect.sh`.
 
 #### Update Settings File
 
-Write to the settings file chosen in Step 2 (user-level `~/.claude/settings.json` or directory-level `.claude/settings.local.json`).
+**IMPORTANT**: Do NOT read or edit settings files directly with Read/Edit tools, as this would expose the API key in the LLM context. Use the setup script instead.
 
-Add to `env`:
+The API key was already written by the setup script in Step 2. Add the hook configuration using:
 
-- `MUSUBI_API_KEY`: The API key entered by the user
-
-Add Stop hook (merge with existing hooks, skip if already present):
-
-```json
-{
-  "hooks": {
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/musubi-stop-transcript-collect.sh",
-            "timeout": 30
-          }
-        ]
-      }
-    ]
-  }
-}
+```bash
+bash "$SETUP_SCRIPT" add-hook <level>
 ```
 
-### 5. Completion
+Where `<level>` is the same level (`user` or `directory`) chosen in Step 2.
+
+The script returns JSON:
+
+- `{"ok":true,"added":true}` — hook was added
+- `{"ok":true,"skipped":true,"reason":"hook already configured"}` — hook already exists
+
+### 4. Completion
+
+Display the following celebration message:
 
 ```
-Setup complete!
-Transcript data will be automatically sent when Claude Code sessions end.
+🎉🎉🎉 Setup Complete! 🎉🎉🎉
 
-⚠️ To start sending data, please end this session.
-   The Stop hook runs when a session ends, so use /exit to close
-   the current session. Data will be collected automatically
-   starting from the next session termination.
+✅ API Key        → Configured
+✅ Connection      → Workspace: <workspaceName> / User: <userName>
+✅ Hook Script     → Deployed
+✅ Hook Settings   → Registered
+
+musubi analytics is now active!
+Usage data will be sent automatically each time a Claude Code session ends.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚡ Next step: End this session with /exit.
+   The Stop hook fires on session end, so data collection
+   will begin from your next session termination.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 If `jq` was not found in Step 1, display the following instead and **abort setup**:
