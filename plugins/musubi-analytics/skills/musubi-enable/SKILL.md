@@ -49,9 +49,13 @@ The script checks all items and returns JSON (API key values are never included)
   "userHookConfigured": true,
   "dirHookConfigured": false,
   "hookScriptExists": true,
-  "hasJq": true
+  "hasJq": true,
+  "userApiUrl": "",
+  "dirApiUrl": "http://localhost:3200"
 }
 ```
+
+`userApiUrl` / `dirApiUrl` are custom API URL overrides. Empty string means default URL is used.
 
 Display the results as a markdown table:
 
@@ -70,27 +74,44 @@ For the directory-level column, use "—" (em dash) when the item is not set. On
 
 #### Connection Verification (when API key exists)
 
-If `userKeySet` or `dirKeySet` is true, run connection verification:
+If `userKeySet` is true, verify the user-level key:
 
 ```bash
-bash "$SETUP_SCRIPT" verify
+bash "$SETUP_SCRIPT" verify user
 ```
 
-The script reads the key directly from settings files and returns JSON (key value is never included):
+If `dirKeySet` is true, verify the directory-level key **separately**:
+
+```bash
+bash "$SETUP_SCRIPT" verify directory
+```
+
+Each returns JSON (key value is never included):
 
 - `{"ok":true,"httpCode":200,"workspaceName":"...","workspaceSlug":"...","userName":"...","source":"user|directory"}` on success
 - `{"ok":false,"error":"..."}` on failure
 
-Add the result to the status table:
+Add the results to the status table. Show connection status for **each level independently**:
 
 - `ok: true`: `✅ Connected (Workspace: <workspaceName>, User: <userName>)`
 - `ok: false`: `❌ Failed (<error>)` — indicate the key may be invalid or revoked
+- Key not set: `—`
 
 ```
 | Connection             | ✅ Connected / ❌ Failed  | — or ✅ Connected / ❌ Failed |
 ```
 
-Store the `workspaceSlug` from the response for use in Step 2 (dashboard URL).
+#### Custom API URL Display
+
+If `userApiUrl` or `dirApiUrl` is non-empty in the status output, add an **API URL** row to the table:
+
+```
+| API URL                | — or <url>               | — or <url>                 |
+```
+
+Show the actual URL value for the level where it is set, and "—" otherwise. Only add this row if at least one custom URL is configured.
+
+Store the `workspaceSlug` from the first successful verification response for use in Step 2 (dashboard URL).
 
 **If all items are configured AND connection is verified:**
 

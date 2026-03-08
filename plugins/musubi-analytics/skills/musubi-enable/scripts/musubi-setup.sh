@@ -104,19 +104,52 @@ cmd_status() {
   local hook_script_exists="false"
   [ -x "$hook_script" ] && hook_script_exists="true"
 
-  cat <<EOJSON
-{"userKeySet":${user_key_set},"dirKeySet":${dir_key_set},"userHookConfigured":${user_hook_configured},"dirHookConfigured":${dir_hook_configured},"hookScriptExists":${hook_script_exists},"hasJq":${has_jq}}
+  # Check for custom API URL in settings
+  local user_api_url="" dir_api_url=""
+  if [ "$has_jq" = "true" ]; then
+    [ -f "$USER_SETTINGS" ] && user_api_url=$(jq -r '.env.MUSUBI_API_URL // empty' "$USER_SETTINGS" 2>/dev/null) || true
+    [ -f "$DIR_SETTINGS" ] && dir_api_url=$(jq -r '.env.MUSUBI_API_URL // empty' "$DIR_SETTINGS" 2>/dev/null) || true
+  fi
+
+  # Build JSON with jq to handle proper escaping
+  if [ "$has_jq" = "true" ]; then
+    jq -n -c \
+      --argjson userKeySet "$user_key_set" \
+      --argjson dirKeySet "$dir_key_set" \
+      --argjson userHookConfigured "$user_hook_configured" \
+      --argjson dirHookConfigured "$dir_hook_configured" \
+      --argjson hookScriptExists "$hook_script_exists" \
+      --argjson hasJq "$has_jq" \
+      --arg userApiUrl "$user_api_url" \
+      --arg dirApiUrl "$dir_api_url" \
+      '{userKeySet: $userKeySet, dirKeySet: $dirKeySet, userHookConfigured: $userHookConfigured, dirHookConfigured: $dirHookConfigured, hookScriptExists: $hookScriptExists, hasJq: $hasJq, userApiUrl: $userApiUrl, dirApiUrl: $dirApiUrl}'
+  else
+    cat <<EOJSON
+{"userKeySet":${user_key_set},"dirKeySet":${dir_key_set},"userHookConfigured":${user_hook_configured},"dirHookConfigured":${dir_hook_configured},"hookScriptExists":${hook_script_exists},"hasJq":${has_jq},"userApiUrl":"","dirApiUrl":""}
 EOJSON
+  fi
 }
 
 cmd_verify() {
-  local key=""
-  key=$(read_key_from_settings "$USER_SETTINGS") || true
-  local source="user"
-  if [ -z "$key" ]; then
-    key=$(read_key_from_settings "$DIR_SETTINGS") || true
-    source="directory"
+  local level="${1:-}"
+  local key="" source=""
+
+  if [ -n "$level" ]; then
+    case "$level" in
+      user) source="user"; key=$(read_key_from_settings "$USER_SETTINGS") || true ;;
+      directory) source="directory"; key=$(read_key_from_settings "$DIR_SETTINGS") || true ;;
+      *) json_err "invalid_level"; return ;;
+    esac
+  else
+    # No level specified: try user first, fallback to directory (backward compat)
+    key=$(read_key_from_settings "$USER_SETTINGS") || true
+    source="user"
+    if [ -z "$key" ]; then
+      key=$(read_key_from_settings "$DIR_SETTINGS") || true
+      source="directory"
+    fi
   fi
+
   if [ -z "$key" ]; then
     json_err "no_key"
     return
@@ -233,7 +266,7 @@ EOJSON
 
 case "${1:-}" in
   status)   cmd_status ;;
-  verify)   cmd_verify ;;
+  verify)   cmd_verify "${2:-}" ;;
   setup)    cmd_setup "${2:-}" ;;
   add-hook) cmd_add_hook "${2:-}" ;;
   remove)   cmd_remove "${2:-}" ;;
