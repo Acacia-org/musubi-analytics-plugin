@@ -36,7 +36,32 @@ Display the results as a markdown table with separate columns for user-level and
 
 For the directory-level column, use "—" (em dash) when the item is not set. Only use ❌ for user-level items that are missing, since user-level is the recommended default. Hook scripts are always deployed to `~/.claude/hooks/` regardless of configuration level, so the directory-level column shows "—" for those rows.
 
-**If all items are configured:**
+#### Connection Verification (when API key exists)
+
+If an API key is found in either user-level or directory-level settings, perform a connection verification:
+
+Determine the API URL:
+
+- Use `MUSUBI_API_URL` env var if set, otherwise default to `https://cc-usage-collector.musubi-me.app`
+
+```bash
+curl -s -w "\n%{http_code}" \
+  -H "Authorization: Bearer <API_KEY>" \
+  "<api-url>/api/transcript/health"
+```
+
+Add the result to the status table:
+
+- HTTP 200: `✅ Connected (Workspace: <workspaceName>, User: <userName>)`
+- Non-200: `❌ Failed (HTTP <status>)` — indicate the key may be invalid or revoked
+
+```
+| Connection             | ✅ Connected / ❌ Failed  | — or ✅ Connected / ❌ Failed |
+```
+
+Store the `workspaceSlug` from the health response for use in Step 2 (dashboard URL).
+
+**If all items are configured AND connection is verified:**
 
 Use AskUserQuestion to ask the user:
 
@@ -46,7 +71,7 @@ Use AskUserQuestion to ask the user:
 If the user selects "Cancel", display "Setup is already complete. No changes made." and exit.
 If the user selects "Update", proceed to Step 2.
 
-**If any item is missing:** Proceed to Step 2
+**If any item is missing or connection failed:** Proceed to Step 2
 
 ### 2. Configuration Level Selection
 
@@ -62,8 +87,16 @@ Determine the dashboard URL:
 - If `MUSUBI_API_URL` env var is set, derive from it (replace `api.` with `app.`, or replace port with dashboard port as appropriate). For localhost URLs like `http://localhost:3200`, use `http://localhost:3000`.
 - Otherwise, default to `https://app.musubi-me.app`
 
+If `workspaceSlug` was obtained from connection verification in Step 1, use it to construct the URL:
+
 ```bash
-open "<dashboard-url>/settings/api-keys"
+open "<dashboard-url>/<workspaceSlug>/settings/api-keys"
+```
+
+If `workspaceSlug` is not available (no existing key or connection failed), open the dashboard root:
+
+```bash
+open "<dashboard-url>"
 ```
 
 Then display:
@@ -91,7 +124,7 @@ curl -s -w "\n%{http_code}" \
 ```
 
 - Non-200 response: Display error message and abort
-- HTTP 200: Extract `workspaceName` and `userName` from the response JSON and display:
+- HTTP 200: Extract `workspaceName`, `workspaceSlug`, and `userName` from the response JSON and display:
 
 ```
 Connection verified!
