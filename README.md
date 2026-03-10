@@ -21,6 +21,7 @@ Tracks skill, subagent, and MCP usage per session.
 
 ```
 /plugin marketplace add Acacia-org/musubi-analytics-plugin
+/reload-plugins
 ```
 
 ### 2. Install the plugin
