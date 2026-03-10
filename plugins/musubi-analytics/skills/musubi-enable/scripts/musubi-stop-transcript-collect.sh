@@ -64,6 +64,7 @@ LINES_DELETED=$(echo "$LINE_COUNTS" | jq -r '.linesDeleted // 0')
 
 # Extract only usage + tool_use metadata from JSONL (reduces 10-27MB → ~50KB)
 # Replace cwd with repo identifier and inject pluginVersion
+# Also extract user-invoked skills from <command-name> tags (Claude Code ≥2.1.70)
 nohup jq -c --arg repo "$REPO" --arg pv "$PLUGIN_VERSION" --arg gb "$GIT_BRANCH" '
   if .type == "assistant" and .message then
     {
@@ -74,6 +75,21 @@ nohup jq -c --arg repo "$REPO" --arg pv "$PLUGIN_VERSION" --arg gb "$GIT_BRANCH"
         content: [.message.content[]? | select(.type == "tool_use") | {type, name, input: {skill: .input.skill, subagent_type: .input.subagent_type}}]
       }
     }
+  elif .type == "user" and .message then
+    # Detect user-invoked skills via <command-name>/skill</command-name> tag
+    # Exclude built-in CLI commands (clear, login, compact, etc.)
+    (.message.content // .message // "" |
+      if type == "array" then map(select(.type == "text") | .text) | join("")
+      elif type == "string" then .
+      else "" end) as $text |
+    if ($text | test("<command-name>/[^<]+</command-name>")) then
+      ($text | capture("<command-name>/(?<skill>[^<]+)</command-name>") | .skill) as $skill |
+      if ($skill | test("^(clear|login|exit|compact|plugin|skill|skills|model|config|status|doctor|mcp|upgrade|reload-plugins|help|cost|init|memory|review|terminal|vim|permissions)$")) then
+        empty
+      else
+        {type: "user_skill", sessionId, repo: $repo, pluginVersion: $pv, gitBranch: $gb, version, timestamp, isoTimestamp, skill: $skill}
+      end
+    else empty end
   elif .sessionId or .cwd or .version then
     {type, sessionId, repo: $repo, pluginVersion: $pv, gitBranch: $gb, version, timestamp, isoTimestamp}
   else empty end
