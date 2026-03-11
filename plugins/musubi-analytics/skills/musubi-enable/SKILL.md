@@ -44,74 +44,62 @@ The script checks all items and returns JSON (API key values are never included)
 
 ```json
 {
-  "userKeySet": true,
-  "dirKeySet": false,
-  "userHookConfigured": true,
-  "dirHookConfigured": false,
+  "keySet": true,
+  "hookConfigured": true,
   "hookScriptExists": true,
   "hasJq": true,
-  "userApiUrl": "",
-  "dirApiUrl": "http://localhost:3200"
+  "apiUrl": ""
 }
 ```
 
-`userApiUrl` / `dirApiUrl` are custom API URL overrides. Empty string means default URL is used.
+`apiUrl` is a custom API URL override. Empty string means default URL is used.
 
 Display the results as a markdown table:
 
 ```
 ### musubi analytics - Configuration Status
 
-| Component              | User level (~/.claude/)  | Directory level (.claude/) |
-|------------------------|--------------------------|----------------------------|
-| API Key                | ✅ Set / ❌ Not set       | ✅ Set / — (not set)        |
-| Stop Hook (settings)   | ✅ Configured / ❌ Not configured | ✅ Configured / — (not set) |
-| Hook script (collector)| ✅ Found / ❌ Missing     | —                          |
-| jq (required)          | ✅ Found / ❌ Not found   | —                          |
+| Component              | Status                          |
+|------------------------|---------------------------------|
+| API Key                | ✅ Set / ❌ Not set              |
+| Stop Hook (settings)   | ✅ Configured / ❌ Not configured |
+| Hook script (collector)| ✅ Found / ❌ Missing            |
+| jq (required)          | ✅ Found / ❌ Not found          |
 ```
-
-For the directory-level column, use "—" (em dash) when the item is not set. Only use ❌ for user-level items that are missing, since user-level is the recommended default. Hook scripts are always deployed to `~/.claude/hooks/` regardless of configuration level, so the directory-level column shows "—" for those rows.
 
 #### Connection Verification (when API key exists)
 
-If `userKeySet` is true, verify the user-level key:
+If `keySet` is true, verify the key:
 
 ```bash
-bash "$SETUP_SCRIPT" verify user
+bash "$SETUP_SCRIPT" verify
 ```
 
-If `dirKeySet` is true, verify the directory-level key **separately**:
+Returns JSON (key value is never included):
 
-```bash
-bash "$SETUP_SCRIPT" verify directory
-```
-
-Each returns JSON (key value is never included):
-
-- `{"ok":true,"httpCode":200,"workspaceName":"...","workspaceSlug":"...","userName":"...","source":"user|directory"}` on success
+- `{"ok":true,"httpCode":200,"workspaceName":"...","workspaceSlug":"...","userName":"..."}` on success
 - `{"ok":false,"error":"..."}` on failure
 
-Add the results to the status table. Show connection status for **each level independently**:
+Add the result to the status table:
 
 - `ok: true`: `✅ Connected (Workspace: <workspaceName>, User: <userName>)`
 - `ok: false`: `❌ Failed (<error>)` — indicate the key may be invalid or revoked
-- Key not set: `—`
 
 ```
-| Connection             | ✅ Connected / ❌ Failed  | — or ✅ Connected / ❌ Failed |
+| Connection             | ✅ Connected / ❌ Failed         |
 ```
 
 #### Custom API URL Display
 
-If `userApiUrl` or `dirApiUrl` is non-empty in the status output, add an **API URL** row to the table:
+If `apiUrl` is non-empty in the status output, add an **API URL** row to the table:
 
 ```
-| API URL                | — or <url>               | — or <url>                 |
+| API URL                | <url>                           |
 ```
 
-Show the actual URL value for the level where it is set, and "—" otherwise. Only add this row if at least one custom URL is configured.
+Only add this row if a custom URL is configured.
 
-Store the `workspaceSlug` from the first successful verification response for use in Step 2 (dashboard URL).
+Store the `workspaceSlug` from the verification response for use in Step 2 (dashboard URL).
 
 **If all items are configured AND connection is verified:**
 
@@ -125,14 +113,9 @@ If the user selects "Update", proceed to Step 2.
 
 **If any item is missing or connection failed:** Proceed to Step 2
 
-### 2. Configuration Level Selection
+### 2. API Key Setup
 
-Use AskUserQuestion to let the user choose the configuration level. **Only these two options — nothing else:**
-
-- **User level (Recommended)** — Writes to `~/.claude/settings.json`. Applies to all projects.
-- **Directory level** — Writes to `.claude/settings.local.json` in the current project.
-
-After the user selects a level, open the musubi dashboard and run the setup script in a **single Bash command**. Do NOT add any additional AskUserQuestion calls between the level selection and the Bash command.
+Open the musubi dashboard and run the setup script in a **single Bash command**. All configuration is written to `~/.claude/settings.json` (user level).
 
 Determine the dashboard URL:
 
@@ -150,14 +133,14 @@ Run dashboard open and setup script together:
 open "<dashboard-url>[/<workspaceSlug>]/api-keys" && echo "
 Opening musubi dashboard in your browser...
 A dialog will appear — paste your API key there.
-" && bash "$SETUP_SCRIPT" setup <level>
+" && bash "$SETUP_SCRIPT" setup
 ```
 
 On macOS, a secure dialog appears for the user to paste the key. The key is never sent to the LLM.
 
 The script returns JSON:
 
-- `{"ok":true,...,"workspaceName":"...","userName":"...","level":"user|directory","written":true}` on success
+- `{"ok":true,...,"workspaceName":"...","userName":"...","written":true}` on success
 - `{"ok":false,"error":"empty_key"}` on failure (user cancelled dialog) — display the error and abort
 - `{"ok":false,"error":"no_tty"}` — non-macOS environment without interactive terminal. See **Fallback** below.
 
@@ -169,9 +152,9 @@ If the script returns `no_tty`, display the following instructions so the user c
 This environment does not support secure key input dialogs.
 Please run the following command in a separate terminal:
 
-  bash <SETUP_SCRIPT_ABSOLUTE_PATH> setup <level>
+  bash <SETUP_SCRIPT_ABSOLUTE_PATH> setup
 
-After running it, use /musubi-enable-local (or /musubi-enable) again to continue setup.
+After running it, use /musubi-enable again to continue setup.
 ```
 
 Then **stop** — do NOT proceed to Step 3. The user will re-run the skill after manually executing the script.
@@ -208,10 +191,8 @@ After copying, run `chmod +x ~/.claude/hooks/musubi-stop-transcript-collect.sh`.
 The API key was already written by the setup script in Step 2. Add the hook configuration using:
 
 ```bash
-bash "$SETUP_SCRIPT" add-hook <level>
+bash "$SETUP_SCRIPT" add-hook
 ```
-
-Where `<level>` is the same level (`user` or `directory`) chosen in Step 2.
 
 The script returns JSON:
 
