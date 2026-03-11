@@ -46,8 +46,25 @@ End a Claude Code session and confirm that data appears on the dashboard.
 
 ## Updating
 
+> [!IMPORTANT]
+> `/plugin update` だけではプラグインが更新されないことがあります。
+> その場合は **marketplace を先に更新** してから、プラグインを更新または再インストールしてください。
+
+### 通常の更新
+
 ```
 /plugin update musubi-analytics@musubi-analytics
+```
+
+### 更新できない場合
+
+marketplace を更新してからプラグインを再インストールします:
+
+```
+/plugin marketplace remove Acacia-org/musubi-analytics-plugin
+/plugin marketplace add Acacia-org/musubi-analytics-plugin
+/reload-plugins
+/plugin install musubi-analytics@musubi-analytics
 ```
 
 Push to the GitHub repository, and users can pull the latest version with the update command.
