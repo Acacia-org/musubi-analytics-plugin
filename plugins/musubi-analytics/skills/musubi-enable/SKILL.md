@@ -171,6 +171,8 @@ User: <userName>
 
 #### Deploy Hook Launcher
 
+**IMPORTANT**: In the following operations, if the file already exists, overwrite it using `command cp -f` or similar.
+
 Copy the **launcher script** to `~/.claude/hooks/`:
 
 - `musubi-hook-launcher.sh` → `~/.claude/hooks/musubi-stop-transcript-collect.sh`
